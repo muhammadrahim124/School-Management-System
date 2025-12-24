@@ -1,50 +1,102 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth } from "@/components/AuthProvider"
-import { Header } from "@/components/Header"
-import { Eye, EyeOff, Shield, Users, GraduationCap, ArrowLeft } from "lucide-react"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+// import { Shield, Users, GraduationCap, ArrowLeft } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Shield,
+  Users,
+  GraduationCap,
+  ArrowLeft,
+} from "lucide-react";
 
-export default function LoginPage() {
-  const [form, setForm] = useState({ email: "", password: "" })
-  const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const role = searchParams.get("role") as "admin" | "teacher" | "student" | null
-  const { user, signIn } = useAuth()
+const LoginPage: React.FC = () => {
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const role = searchParams.get("role") as
+    | "admin"
+    | "teacher"
+    | "student"
+    | null;
+  const { user, profile } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      const dashboardRoute = `/${user.role}-dashboard`
-      router.push(dashboardRoute)
+    if (user && profile) {
+      const dashboardRoute = `/${profile.role}-dashboard`;
+      navigate(dashboardRoute, { replace: true });
     }
-  }, [user, router])
+  }, [user, profile, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
+  
     try {
-      if (!form.email || !form.password) {
-        throw new Error("Email and password are required.")
+      if (!form.email || !form.password) throw new Error("Email and password are required.")
+  
+      // ✅ Check admin existence first (optional if you want to block manual admin login)
+      if (role === "admin") {
+        const { data: adminProfile, error: adminError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("email", form.email)
+          .eq("role", "admin")
+          .single()
+  
+        if (adminError || !adminProfile) {
+          throw new Error("Admin account not found. Please contact the system administrator.")
+        }
       }
-
-      await signIn(form.email, form.password)
+  
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+  
+      if (loginError) throw loginError
+  
+      const userId = data.user?.id
+      if (!userId) throw new Error("No user returned from Supabase.")
+  
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single()
+  
+      if (profileError) throw profileError
+  
+      const userRole = profile?.role
+  
+      if (userRole === "admin") {
+        navigate("/admin-dashboard")
+      } else if (userRole === "teacher") {
+        navigate("/teacher-dashboard")
+      } else {
+        navigate("/student-dashboard")
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
   }
-
+  
   const getRoleInfo = () => {
     switch (role) {
       case "admin":
@@ -52,33 +104,31 @@ export default function LoginPage() {
           icon: <Shield className="w-12 h-12" />,
           title: "Admin",
           color: "from-purple-500 to-purple-600",
-        }
+        };
       case "teacher":
         return {
           icon: <Users className="w-12 h-12" />,
           title: "Teacher",
           color: "from-blue-500 to-blue-600",
-        }
+        };
       case "student":
         return {
           icon: <GraduationCap className="w-12 h-12" />,
           title: "Student",
           color: "from-green-500 to-green-600",
-        }
+        };
       default:
-        return null
+        return null;
     }
-  }
+  };
 
-  const roleInfo = getRoleInfo()
+  const roleInfo = getRoleInfo();
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <button
-          onClick={() => router.push("/role-selection")}
+          onClick={() => navigate("/role-selection")}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -110,7 +160,7 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 bg-white"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
               />
             </div>
@@ -129,7 +179,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={form.password}
                 onChange={handleChange}
-                className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 bg-white"
+                className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
               />
               <button
@@ -164,19 +214,23 @@ export default function LoginPage() {
             <div className="mt-6 text-center">
               <p className="text-gray-600">
                 Don't have an account?{" "}
-                <a
-                  href={`/signup${role ? `?role=${role}` : ""}`}
+                <Link
+                  to={`/signup${role ? `?role=${role}` : ""}`}
                   className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
                 >
                   Sign up
-                </a>
+                </Link>
               </p>
             </div>
           )}
         </div>
       </div>
     </div>
-    </>
-  )
-}
+  );
+};
 
+export default LoginPage;
+
+// Admin Credentials:
+// Email: admin@school.com
+// Password: Admin@12345

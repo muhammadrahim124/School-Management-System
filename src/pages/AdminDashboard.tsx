@@ -1,136 +1,113 @@
-"use client"
-
-import { useEffect, useState } from 'react'
-import { Users, BookOpen, Calendar, Bell, Plus } from 'lucide-react'
-import { useAuth } from '@/components/AuthProvider'
-import { useRouter } from 'next/navigation'
-import { Header } from '@/components/Header'
+import { useEffect, useState } from 'react';
+import { Users, BookOpen, Calendar, Bell, Plus, Edit, Trash2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface Stats {
-  totalStudents: number
-  totalTeachers: number
-  totalClasses: number
-  totalAnnouncements: number
+  totalStudents: number;
+  totalTeachers: number;
+  totalClasses: number;
+  totalAnnouncements: number;
 }
 
-export default function AdminDashboard() {
-  const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
+export function AdminDashboard() {
   const [stats, setStats] = useState<Stats>({
     totalStudents: 0,
     totalTeachers: 0,
     totalClasses: 0,
     totalAnnouncements: 0,
-  })
-  const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'holidays' | 'classes'>('overview')
-  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false)
-  const [showHolidayModal, setShowHolidayModal] = useState(false)
+  });
+  const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'holidays' | 'classes'>('overview');
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
     content: '',
     priority: 'normal',
     target_audience: 'all',
-  })
+  });
   const [holidayForm, setHolidayForm] = useState({
     title: '',
     start_date: '',
     end_date: '',
     color: '#3B82F6',
     description: '',
-  })
+  });
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/role-selection')
-    } else if (user && user.role !== 'admin') {
-      router.push(`/${user.role}-dashboard`)
-    }
-  }, [user, authLoading, router])
-
-  useEffect(() => {
-    loadStats()
-  }, [])
+    loadStats();
+  }, []);
 
   const loadStats = async () => {
-    try {
-      const response = await fetch('/api/admin/stats')
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error)
-    }
-  }
+    const { count: studentsCount } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: teachersCount } = await supabase
+      .from('teachers')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: classesCount } = await supabase
+      .from('classes')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: announcementsCount } = await supabase
+      .from('announcements')
+      .select('*', { count: 'exact', head: true });
+
+    setStats({
+      totalStudents: studentsCount || 0,
+      totalTeachers: teachersCount || 0,
+      totalClasses: classesCount || 0,
+      totalAnnouncements: announcementsCount || 0,
+    });
+  };
 
   const handleCreateAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) {
-      alert('Please fill all required fields')
-      return
+      alert('Please fill all required fields');
+      return;
     }
 
-    try {
-      const response = await fetch('/api/admin/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(announcementForm),
-      })
+    const { error } = await supabase
+      .from('announcements')
+      .insert([{
+        title: announcementForm.title,
+        content: announcementForm.content,
+        priority: announcementForm.priority,
+        target_audience: announcementForm.target_audience,
+      }]);
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create announcement')
-      }
-
-      alert('Announcement created successfully!')
-      setShowAnnouncementModal(false)
-      setAnnouncementForm({ title: '', content: '', priority: 'normal', target_audience: 'all' })
-      loadStats()
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to create announcement')
+    if (error) {
+      alert('Error creating announcement: ' + error.message);
+    } else {
+      alert('Announcement created successfully!');
+      setShowAnnouncementModal(false);
+      setAnnouncementForm({ title: '', content: '', priority: 'normal', target_audience: 'all' });
+      loadStats();
     }
-  }
+  };
 
   const handleCreateHoliday = async () => {
     if (!holidayForm.title || !holidayForm.start_date || !holidayForm.end_date) {
-      alert('Please fill all required fields')
-      return
+      alert('Please fill all required fields');
+      return;
     }
 
-    try {
-      const response = await fetch('/api/admin/holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(holidayForm),
-      })
+    const { error } = await supabase
+      .from('holidays')
+      .insert([holidayForm]);
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create holiday')
-      }
-
-      alert('Holiday created successfully!')
-      setShowHolidayModal(false)
-      setHolidayForm({ title: '', start_date: '', end_date: '', color: '#3B82F6', description: '' })
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to create holiday')
+    if (error) {
+      alert('Error creating holiday: ' + error.message);
+    } else {
+      alert('Holiday created successfully!');
+      setShowHolidayModal(false);
+      setHolidayForm({ title: '', start_date: '', end_date: '', color: '#3B82F6', description: '' });
     }
-  }
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  };
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
+    <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
@@ -265,7 +242,7 @@ export default function AdminDashboard() {
                 type="text"
                 value={announcementForm.title}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Announcement title"
               />
             </div>
@@ -274,7 +251,7 @@ export default function AdminDashboard() {
               <textarea
                 value={announcementForm.content}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
                 placeholder="Announcement content"
               />
@@ -284,7 +261,7 @@ export default function AdminDashboard() {
               <select
                 value={announcementForm.priority}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, priority: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="normal">Normal</option>
                 <option value="urgent">Urgent</option>
@@ -295,7 +272,7 @@ export default function AdminDashboard() {
               <select
                 value={announcementForm.target_audience}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, target_audience: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All</option>
                 <option value="students">Students Only</option>
@@ -330,7 +307,7 @@ export default function AdminDashboard() {
                 type="text"
                 value={holidayForm.title}
                 onChange={(e) => setHolidayForm({ ...holidayForm, title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="Holiday name"
               />
             </div>
@@ -341,7 +318,7 @@ export default function AdminDashboard() {
                   type="date"
                   value={holidayForm.start_date}
                   onChange={(e) => setHolidayForm({ ...holidayForm, start_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -350,7 +327,7 @@ export default function AdminDashboard() {
                   type="date"
                   value={holidayForm.end_date}
                   onChange={(e) => setHolidayForm({ ...holidayForm, end_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -368,7 +345,7 @@ export default function AdminDashboard() {
               <textarea
                 value={holidayForm.description}
                 onChange={(e) => setHolidayForm({ ...holidayForm, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 rows={3}
                 placeholder="Optional description"
               />
@@ -391,15 +368,14 @@ export default function AdminDashboard() {
         </Modal>
       )}
     </div>
-    </>
-  )
+  );
 }
 
 interface StatsCardProps {
-  icon: React.ReactNode
-  title: string
-  value: number
-  color: string
+  icon: React.ReactNode;
+  title: string;
+  value: number;
+  color: string;
 }
 
 function StatsCard({ icon, title, value, color }: StatsCardProps) {
@@ -408,7 +384,7 @@ function StatsCard({ icon, title, value, color }: StatsCardProps) {
     green: 'from-green-500 to-green-600',
     purple: 'from-purple-500 to-purple-600',
     orange: 'from-orange-500 to-orange-600',
-  }[color]
+  }[color];
 
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow">
@@ -420,14 +396,14 @@ function StatsCard({ icon, title, value, color }: StatsCardProps) {
         <p className="text-sm font-medium opacity-90">{title}</p>
       </div>
     </div>
-  )
+  );
 }
 
 interface QuickActionButtonProps {
-  icon: React.ReactNode
-  label: string
-  onClick: () => void
-  color: string
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  color: string;
 }
 
 function QuickActionButton({ icon, label, onClick, color }: QuickActionButtonProps) {
@@ -435,7 +411,7 @@ function QuickActionButton({ icon, label, onClick, color }: QuickActionButtonPro
     blue: 'bg-blue-600 hover:bg-blue-700',
     green: 'bg-green-600 hover:bg-green-700',
     purple: 'bg-purple-600 hover:bg-purple-700',
-  }[color]
+  }[color];
 
   return (
     <button
@@ -445,7 +421,7 @@ function QuickActionButton({ icon, label, onClick, color }: QuickActionButtonPro
       {icon}
       <span>{label}</span>
     </button>
-  )
+  );
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -455,6 +431,5 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
         <div className="p-6">{children}</div>
       </div>
     </div>
-  )
+  );
 }
-

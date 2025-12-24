@@ -1,12 +1,39 @@
 "use client"
 
+import type React from "react"
+
 import { BookOpen, Calendar, FileText, Bell, GraduationCap, Users, Trophy, ImageIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Announcement, Holiday, Exam } from "@/types"
+import { supabase } from "../lib/supabase"
+import { useNavigate } from "react-router-dom"
+
+interface Announcement {
+  id: string
+  title: string
+  content: string
+  priority: string
+  created_at: string
+}
+
+interface Holiday {
+  id: string
+  title: string
+  start_date: string
+  end_date: string
+  color: string
+  description: string
+}
+
+interface Exam {
+  id: string
+  name: string
+  subject: string
+  exam_date: string
+  start_time: string
+}
 
 export function PublicHome() {
-  const router = useRouter()
+  const navigate = useNavigate()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [upcomingExams, setUpcomingExams] = useState<Exam[]>([])
@@ -16,15 +43,29 @@ export function PublicHome() {
   }, [])
 
   const loadPublicData = async () => {
-    try {
-      // These will be replaced with API calls later
-      // For now, just set empty arrays
-      setAnnouncements([])
-      setHolidays([])
-      setUpcomingExams([])
-    } catch (error) {
-      console.error('Error loading public data:', error)
-    }
+    const { data: announcementsData } = await supabase
+      .from("announcements")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(3)
+
+    const { data: holidaysData } = await supabase
+      .from("holidays")
+      .select("*")
+      .gte("end_date", new Date().toISOString().split("T")[0])
+      .order("start_date", { ascending: true })
+      .limit(5)
+
+    const { data: examsData } = await supabase
+      .from("exams")
+      .select("*")
+      .gte("exam_date", new Date().toISOString().split("T")[0])
+      .order("exam_date", { ascending: true })
+      .limit(5)
+
+    if (announcementsData) setAnnouncements(announcementsData)
+    if (holidaysData) setHolidays(holidaysData)
+    if (examsData) setUpcomingExams(examsData)
   }
 
   return (
@@ -46,7 +87,7 @@ export function PublicHome() {
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <button
-                  onClick={() => router.push("/role-selection")}
+                  onClick={() => navigate("/role-selection")}
                   className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all transform hover:scale-105 shadow-lg"
                 >
                   Login
@@ -287,4 +328,3 @@ function FeatureCard({ icon, title, description }: FeatureCardProps) {
     </div>
   )
 }
-

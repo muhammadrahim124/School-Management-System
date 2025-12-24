@@ -1,69 +1,145 @@
-"use client"
+import { useEffect, useState } from 'react';
+import { BookOpen, Calendar, Award, DollarSign, Bell, CheckCircle, XCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
-import { useEffect, useState } from 'react'
-import { BookOpen, Calendar, Award, DollarSign, Bell, CheckCircle, XCircle } from 'lucide-react'
-import { useAuth } from '@/components/AuthProvider'
-import { useRouter } from 'next/navigation'
-import { Header } from '@/components/Header'
-import { Homework, ExamResult, Attendance, Fee, Notification } from '@/types'
+interface Homework {
+  id: string;
+  subject: string;
+  title: string;
+  description: string;
+  due_date: string;
+  attachment_url: string;
+}
 
-export default function StudentDashboard() {
-  const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
-  const [homework, setHomework] = useState<Homework[]>([])
-  const [results, setResults] = useState<ExamResult[]>([])
-  const [attendance, setAttendance] = useState<Attendance[]>([])
-  const [fees, setFees] = useState<Fee[]>([])
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [attendanceStats, setAttendanceStats] = useState({ present: 0, total: 0 })
+interface ExamResult {
+  id: string;
+  marks_obtained: number;
+  exam: {
+    name: string;
+    subject: string;
+    total_marks: number;
+    exam_date: string;
+  };
+}
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/role-selection')
-    } else if (user && user.role !== 'student') {
-      router.push(`/${user.role}-dashboard`)
-    }
-  }, [user, authLoading, router])
+interface Attendance {
+  date: string;
+  status: string;
+}
+
+interface Fee {
+  amount: number;
+  fee_type: string;
+  due_date: string;
+  status: string;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  created_at: string;
+}
+
+export function StudentDashboard() {
+  const { user } = useAuth();
+  const [homework, setHomework] = useState<Homework[]>([]);
+  const [results, setResults] = useState<ExamResult[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [fees, setFees] = useState<Fee[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState({ present: 0, total: 0 });
 
   useEffect(() => {
     if (user) {
-      loadStudentData()
+      loadStudentData();
     }
-  }, [user])
+  }, [user]);
 
   const loadStudentData = async () => {
-    // TODO: Replace with API calls
-    // For now, set empty arrays
-    setHomework([])
-    setResults([])
-    setAttendance([])
-    setFees([])
-    setNotifications([])
-    setAttendanceStats({ present: 0, total: 0 })
-  }
+    const { data: studentData } = await supabase
+      .from('students')
+      .select('class_id')
+      .eq('id', user?.id)
+      .maybeSingle();
+
+    if (studentData?.class_id) {
+      const { data: homeworkData } = await supabase
+        .from('homework')
+        .select('*')
+        .eq('class_id', studentData.class_id)
+        .gte('due_date', new Date().toISOString().split('T')[0])
+        .order('due_date', { ascending: true })
+        .limit(5);
+
+      if (homeworkData) setHomework(homeworkData);
+    }
+
+    const { data: resultsData } = await supabase
+      .from('exam_results')
+      .select(`
+        id,
+        marks_obtained,
+        exam:exams (
+          name,
+          subject,
+          total_marks,
+          exam_date
+        )
+      `)
+      .eq('student_id', user?.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (resultsData) setResults(resultsData as unknown as ExamResult[]);
+
+    const { data: attendanceData } = await supabase
+      .from('attendance')
+      .select('date, status')
+      .eq('student_id', user?.id)
+      .order('date', { ascending: false })
+      .limit(30);
+
+    if (attendanceData) {
+      setAttendance(attendanceData);
+      const present = attendanceData.filter(a => a.status === 'present').length;
+      setAttendanceStats({ present, total: attendanceData.length });
+    }
+
+    const { data: feesData } = await supabase
+      .from('fees')
+      .select('*')
+      .eq('student_id', user?.id)
+      .order('due_date', { ascending: false });
+
+    if (feesData) setFees(feesData);
+
+    const { data: notificationsData } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (notificationsData) setNotifications(notificationsData);
+  };
 
   const markNotificationRead = async (id: string) => {
-    // TODO: API call to mark notification as read
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id);
+
     setNotifications(notifications.map(n =>
       n.id === id ? { ...n, read: true } : n
-    ))
-  }
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+    ));
+  };
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
+    <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Student Dashboard</h1>
 
@@ -261,15 +337,14 @@ export default function StudentDashboard() {
         </div>
       </div>
     </div>
-    </>
-  )
+  );
 }
 
 interface StatCardProps {
-  icon: React.ReactNode
-  title: string
-  value: string
-  color: string
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  color: string;
 }
 
 function StatCard({ icon, title, value, color }: StatCardProps) {
@@ -278,7 +353,7 @@ function StatCard({ icon, title, value, color }: StatCardProps) {
     green: 'from-green-500 to-green-600',
     purple: 'from-purple-500 to-purple-600',
     orange: 'from-orange-500 to-orange-600',
-  }[color]
+  }[color];
 
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow">
@@ -290,6 +365,5 @@ function StatCard({ icon, title, value, color }: StatCardProps) {
         <p className="text-3xl font-bold">{value}</p>
       </div>
     </div>
-  )
+  );
 }
-

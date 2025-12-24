@@ -1,13 +1,12 @@
-"use client"
+import { useState } from 'react';
+import { School, Bell, LogIn, LogOut, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-import { useState } from 'react'
-import { School, Bell, LogIn, LogOut, User } from 'lucide-react'
-import { useAuth } from './AuthProvider'
-import { useRouter } from 'next/navigation'
 
 export function Header() {
-  const { user, signOut } = useAuth()
-  const router = useRouter()
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 transition-all duration-300">
@@ -47,8 +46,8 @@ export function Header() {
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                    <p className="text-sm font-medium text-gray-900">{profile?.full_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{profile?.role}</p>
                   </div>
                 </div>
                 <button
@@ -61,7 +60,7 @@ export function Header() {
               </div>
             ) : (
               <button
-                onClick={() => router.push('/login')}
+                onClick={() => navigate('/login')}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <LogIn className="w-4 h-4" />
@@ -72,5 +71,5 @@ export function Header() {
         </div>
       </div>
     </header>
-  )
+  );
 }

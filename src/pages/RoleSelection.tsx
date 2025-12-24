@@ -1,20 +1,21 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { Header } from "@/components/Header"
+import type React from "react"
+
+import { useNavigate } from "react-router-dom"
 import { Shield, Users, GraduationCap } from "lucide-react"
 
-export default function RoleSelection() {
-  const router = useRouter()
+export function RoleSelection() {
+  const navigate = useNavigate()
 
   const handleRoleSelect = (role: "admin" | "teacher" | "student") => {
-    router.push(`/login?role=${role}`)
+    navigate(`/login?role=${role}`)
+    window.scrollTo(0, 0) // optional: scroll to top after navigation
   }
+  
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
       <div className="max-w-5xl w-full">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Select Your Role</h1>
@@ -48,7 +49,6 @@ export default function RoleSelection() {
         </div>
       </div>
     </div>
-    </>
   )
 }
 
@@ -79,4 +79,3 @@ function RoleCard({ icon, title, description, color, onClick }: RoleCardProps) {
     </button>
   )
 }
-
