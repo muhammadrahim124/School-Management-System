@@ -1,0 +1,231 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String   // Hashed password
+  full_name  String
+  role       String   @default("student") // admin, teacher, student
+  phone      String?
+  avatar_url String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  student       Student?
+  teacher       Teacher?
+  announcements Announcement[] @relation("AnnouncementCreator")
+  notifications Notification[]
+  gallery       Gallery[]      @relation("GalleryUploader")
+
+  @@map("profiles")
+}
+
+model Class {
+  id           String    @id @default(uuid())
+  name         String
+  grade_level  Int
+  section      String
+  academic_year String   @default("2024-2025")
+  created_at   DateTime  @default(now())
+
+  // Relations
+  students  Student[]
+  homework  Homework[]
+  exams     Exam[]
+
+  @@map("classes")
+}
+
+model Student {
+  id            String    @id
+  roll_number   String    @unique
+  class_id      String?
+  date_of_birth DateTime? @db.Date
+  parent_name   String?
+  parent_phone  String?
+  address       String?
+  admission_date DateTime @default(now()) @db.Date
+  created_at    DateTime  @default(now())
+
+  // Relations
+  profile        Profile   @relation(fields: [id], references: [id], onDelete: Cascade)
+  class          Class?    @relation(fields: [class_id], references: [id], onDelete: SetNull)
+  exam_results   ExamResult[]
+  attendance     Attendance[]
+  fees           Fee[]
+
+  @@map("students")
+}
+
+model Teacher {
+  id                   String    @id
+  employee_id          String    @unique
+  subject_specialization String?
+  qualification        String?
+  join_date            DateTime  @default(now()) @db.Date
+  created_at           DateTime  @default(now())
+
+  // Relations
+  profile      Profile   @relation(fields: [id], references: [id], onDelete: Cascade)
+  homework     Homework[]
+  attendance   Attendance[]
+  exam_results ExamResult[] @relation("ExamResultTeacher")
+
+  @@map("teachers")
+}
+
+model Announcement {
+  id             String    @id @default(uuid())
+  title          String
+  content        String
+  priority       String    @default("normal") // normal, urgent
+  target_audience String   @default("all") // all, students, teachers
+  created_by     String?
+  created_at     DateTime  @default(now())
+  expires_at     DateTime?
+
+  // Relations
+  creator Profile? @relation("AnnouncementCreator", fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("announcements")
+}
+
+model Homework {
+  id            String    @id @default(uuid())
+  class_id      String
+  subject       String
+  title         String
+  description   String?
+  due_date      DateTime  @db.Date
+  attachment_url String?
+  created_by    String?
+  created_at    DateTime  @default(now())
+
+  // Relations
+  class     Class    @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  creator   Teacher? @relation(fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("homework")
+}
+
+model Exam {
+  id              String    @id @default(uuid())
+  name            String
+  exam_type       String // mid-term, final, unit-test, quarterly
+  class_id        String
+  subject         String
+  exam_date       DateTime  @db.Date
+  start_time      String
+  duration_minutes Int      @default(60)
+  total_marks     Int       @default(100)
+  created_at      DateTime  @default(now())
+
+  // Relations
+  class        Class        @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  exam_results ExamResult[]
+
+  @@map("exams")
+}
+
+model ExamResult {
+  id            String   @id @default(uuid())
+  exam_id      String
+  student_id   String
+  marks_obtained Decimal @db.Decimal(5, 2)
+  remarks      String?
+  teacher_id   String?
+  created_at   DateTime @default(now())
+
+  // Relations
+  exam    Exam    @relation(fields: [exam_id], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  teacher Teacher? @relation("ExamResultTeacher", fields: [teacher_id], references: [id], onDelete: SetNull)
+
+  @@unique([exam_id, student_id])
+  @@map("exam_results")
+}
+
+model Attendance {
+  id         String   @id @default(uuid())
+  student_id String
+  date       DateTime @default(now()) @db.Date
+  status     String   @default("present") // present, absent, late, half-day
+  marked_by  String?
+  created_at DateTime @default(now())
+
+  // Relations
+  student Student @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  teacher Teacher? @relation(fields: [marked_by], references: [id], onDelete: SetNull)
+
+  @@unique([student_id, date])
+  @@map("attendance")
+}
+
+model Fee {
+  id         String   @id @default(uuid())
+  student_id String
+  amount     Decimal  @db.Decimal(10, 2)
+  fee_type   String
+  due_date   DateTime @db.Date
+  paid_date  DateTime? @db.Date
+  status     String   @default("pending") // pending, paid, overdue
+  created_at DateTime @default(now())
+
+  // Relations
+  student Student @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@map("fees")
+}
+
+model Holiday {
+  id          String   @id @default(uuid())
+  title       String
+  start_date  DateTime @db.Date
+  end_date    DateTime @db.Date
+  color       String   @default("#3B82F6")
+  description String?
+  created_at  DateTime @default(now())
+
+  @@map("holidays")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  user_id   String
+  title     String
+  message   String
+  type      String   @default("info") // info, warning, urgent
+  read      Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  // Relations
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Gallery {
+  id          String   @id @default(uuid())
+  title       String
+  image_url   String
+  category    String   @default("events") // events, sports, academics, activities
+  uploaded_by String?
+  created_at  DateTime @default(now())
+
+  // Relations
+  uploader Profile? @relation("GalleryUploader", fields: [uploaded_by], references: [id], onDelete: SetNull)
+
+  @@map("gallery")
+}
+
