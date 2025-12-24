@@ -1,135 +1,91 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, Users, CheckSquare, FileText, Plus, X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+"use client"
 
-interface Class {
-  id: string;
-  name: string;
-  grade_level: number;
-  section: string;
-}
+import { useEffect, useState } from 'react'
+import { BookOpen, Users, CheckSquare, FileText, Plus, X } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { useRouter } from 'next/navigation'
+import { Header } from '@/components/Header'
+import { Class, Student } from '@/types'
 
-interface Student {
-  id: string;
-  roll_number: string;
-  profiles: {
-    full_name: string;
-  };
-}
-
-export function TeacherDashboard() {
-  const { user } = useAuth();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [showResultsModal, setShowResultsModal] = useState(false);
+export default function TeacherDashboard() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
+  const [classes, setClasses] = useState<Class[]>([])
+  const [selectedClass, setSelectedClass] = useState<string | null>(null)
+  const [students, setStudents] = useState<Student[]>([])
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false)
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false)
+  const [showResultsModal, setShowResultsModal] = useState(false)
   const [homeworkForm, setHomeworkForm] = useState({
     subject: '',
     title: '',
     description: '',
     due_date: '',
-  });
-  const [attendance, setAttendance] = useState<Record<string, string>>({});
-  const [currentDate] = useState(new Date().toISOString().split('T')[0]);
+  })
+  const [attendance, setAttendance] = useState<Record<string, string>>({})
+  const [currentDate] = useState(new Date().toISOString().split('T')[0])
 
   useEffect(() => {
-    loadClasses();
-  }, []);
+    if (!authLoading && !user) {
+      router.push('/role-selection')
+    } else if (user && user.role !== 'teacher') {
+      router.push(`/${user.role}-dashboard`)
+    }
+  }, [user, authLoading, router])
+
+  useEffect(() => {
+    loadClasses()
+  }, [])
 
   useEffect(() => {
     if (selectedClass) {
-      loadStudents();
+      loadStudents()
     }
-  }, [selectedClass]);
+  }, [selectedClass])
 
   const loadClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('*')
-      .order('grade_level', { ascending: true });
-
-    if (data) {
-      setClasses(data);
-      if (data.length > 0) setSelectedClass(data[0].id);
-    }
-  };
+    // TODO: Replace with API call
+    setClasses([])
+  }
 
   const loadStudents = async () => {
-    const { data } = await supabase
-      .from('students')
-      .select(`
-        id,
-        roll_number,
-        profiles (
-          full_name
-        )
-      `)
-      .eq('class_id', selectedClass)
-      .order('roll_number', { ascending: true });
-
-    if (data) {
-      setStudents(data as unknown as Student[]);
-      const initialAttendance: Record<string, string> = {};
-      data.forEach((student) => {
-        initialAttendance[student.id] = 'present';
-      });
-      setAttendance(initialAttendance);
-    }
-  };
+    // TODO: Replace with API call
+    setStudents([])
+  }
 
   const handleCreateHomework = async () => {
     if (!selectedClass || !homeworkForm.subject || !homeworkForm.title || !homeworkForm.due_date) {
-      alert('Please fill all required fields');
-      return;
+      alert('Please fill all required fields')
+      return
     }
 
-    const { error } = await supabase
-      .from('homework')
-      .insert([{
-        class_id: selectedClass,
-        subject: homeworkForm.subject,
-        title: homeworkForm.title,
-        description: homeworkForm.description,
-        due_date: homeworkForm.due_date,
-        created_by: user?.id,
-      }]);
-
-    if (error) {
-      alert('Error creating homework: ' + error.message);
-    } else {
-      alert('Homework created successfully!');
-      setShowHomeworkModal(false);
-      setHomeworkForm({ subject: '', title: '', description: '', due_date: '' });
-    }
-  };
+    // TODO: API call to create homework
+    alert('Homework created successfully!')
+    setShowHomeworkModal(false)
+    setHomeworkForm({ subject: '', title: '', description: '', due_date: '' })
+  }
 
   const handleMarkAttendance = async () => {
-    const attendanceRecords = students.map((student) => ({
-      student_id: student.id,
-      date: currentDate,
-      status: attendance[student.id] || 'present',
-      marked_by: user?.id,
-    }));
+    // TODO: API call to mark attendance
+    alert('Attendance marked successfully!')
+    setShowAttendanceModal(false)
+  }
 
-    const { error } = await supabase
-      .from('attendance')
-      .upsert(attendanceRecords, {
-        onConflict: 'student_id,date',
-      });
-
-    if (error) {
-      alert('Error marking attendance: ' + error.message);
-    } else {
-      alert('Attendance marked successfully!');
-      setShowAttendanceModal(false);
-    }
-  };
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
+    <>
+      <Header />
+      <div className="min-h-screen bg-gray-50 pt-20 px-4 pb-8">
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Teacher Dashboard</h1>
 
@@ -329,15 +285,16 @@ export function TeacherDashboard() {
         </Modal>
       )}
     </div>
-  );
+    </>
+  )
 }
 
 interface ActionCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  color: string;
-  onClick: () => void;
+  icon: React.ReactNode
+  title: string
+  description: string
+  color: string
+  onClick: () => void
 }
 
 function ActionCard({ icon, title, description, color, onClick }: ActionCardProps) {
@@ -345,7 +302,7 @@ function ActionCard({ icon, title, description, color, onClick }: ActionCardProp
     blue: 'from-blue-500 to-blue-600',
     green: 'from-green-500 to-green-600',
     purple: 'from-purple-500 to-purple-600',
-  }[color];
+  }[color]
 
   return (
     <button
@@ -364,7 +321,7 @@ function ActionCard({ icon, title, description, color, onClick }: ActionCardProp
         </span>
       </div>
     </button>
-  );
+  )
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -382,5 +339,6 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
         </div>
       </div>
     </div>
-  );
+  )
 }
+

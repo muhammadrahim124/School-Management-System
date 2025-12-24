@@ -1,104 +1,104 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
-import { Eye, EyeOff, Users, GraduationCap, ArrowLeft } from "lucide-react";
+"use client"
 
-type UserRole = "teacher" | "student";
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useAuth } from "@/components/AuthProvider"
+import { Header } from "@/components/Header"
+import { Eye, EyeOff, Users, GraduationCap, ArrowLeft, Shield } from "lucide-react"
+
+type UserRole = "admin" | "teacher" | "student"
 
 interface SignupForm {
-  email: string;
-  password: string;
-  full_name: string;
-  role: UserRole;
+  email: string
+  password: string
+  full_name: string
+  role: UserRole | ""
 }
 
-const SignupPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const roleFromUrl = searchParams.get("role") as UserRole | null;
+const VALID_ROLES: UserRole[] = ["admin", "teacher", "student"]
+
+export default function SignupPage() {
+  const searchParams = useSearchParams()
+  const roleFromUrl = searchParams.get("role") as UserRole | null
 
   const [form, setForm] = useState<SignupForm>({
     email: "",
     password: "",
     full_name: "",
-    role: roleFromUrl ?? "student",
-  });
+    role: (roleFromUrl && VALID_ROLES.includes(roleFromUrl)) ? roleFromUrl : "",
+  })
 
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
 
-  const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const router = useRouter()
+  const { user, signUp } = useAuth()
 
   useEffect(() => {
-    if (user && profile) {
-      navigate(`/${profile.role}-dashboard`, { replace: true });
+    if (user) {
+      router.push(`/${user.role}-dashboard`)
     }
-  }, [user, profile, navigate]);
+  }, [user, router])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+    e.preventDefault()
+    setLoading(true)
+    setError("")
 
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-      });
-
-      if (authError) throw authError;
-      if (!data.user)
-        throw new Error("Signup failed. Check email verification.");
-
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        email: form.email,
-        full_name: form.full_name,
-        role: form.role,
-      });
-
-      if (profileError) throw profileError;
-
-      setSuccess(true);
-
-      setTimeout(() => {
-        navigate(`/${form.role}-dashboard`);
-      }, 1500);
+      if (!form.role) {
+        throw new Error("Please select a role")
+      }
+      await signUp(form.email, form.password, form.full_name, form.role)
+      setSuccess(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const roleInfo =
-    form.role === "teacher"
+    form.role === "admin"
+      ? {
+          title: "Admin",
+          icon: <Shield className="w-12 h-12" />,
+          color: "from-purple-500 to-purple-600",
+        }
+      : form.role === "teacher"
       ? {
           title: "Teacher",
           icon: <Users className="w-12 h-12" />,
           color: "from-blue-500 to-blue-600",
         }
-      : {
+      : form.role === "student"
+      ? {
           title: "Student",
           icon: <GraduationCap className="w-12 h-12" />,
           color: "from-green-500 to-green-600",
-        };
+        }
+      : {
+          title: "Sign Up",
+          icon: <Users className="w-12 h-12" />,
+          color: "from-gray-500 to-gray-600",
+        }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <button
           onClick={() =>
-            navigate(`/login${roleFromUrl ? `?role=${roleFromUrl}` : ""}`)
+            router.push(`/login${roleFromUrl ? `?role=${roleFromUrl}` : ""}`)
           }
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
         >
@@ -125,7 +125,7 @@ const SignupPage: React.FC = () => {
                 placeholder="Full Name"
                 value={form.full_name}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border rounded-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
 
@@ -135,20 +135,10 @@ const SignupPage: React.FC = () => {
                 placeholder="Email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border rounded-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
 
-              <input
-                name="password"
-                type="password"
-                placeholder="Password (min 6 chars)"
-                value={form.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border rounded-lg"
-                minLength={6}
-                required
-              />
               <div className="relative">
                 <input
                   id="password"
@@ -157,14 +147,14 @@ const SignupPage: React.FC = () => {
                   placeholder="Password (min 6 chars)"
                   value={form.password}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border rounded-lg"
+                  className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   minLength={6}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0  right-3 flex items-center px-1 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="absolute inset-y-0 right-3 flex items-center px-1 text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   {showPassword ? (
                     <Eye className="w-5 h-5" />
@@ -177,9 +167,12 @@ const SignupPage: React.FC = () => {
               <select
                 name="role"
                 value={form.role}
-                disabled
-                className="w-full px-4 py-3 border rounded-lg bg-gray-100"
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                required
               >
+                <option value="">Select Role</option>
+                <option value="admin">Admin</option>
                 <option value="teacher">Teacher</option>
                 <option value="student">Student</option>
               </select>
@@ -192,6 +185,7 @@ const SignupPage: React.FC = () => {
 
               <button
                 disabled={loading}
+                type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
               >
                 {loading ? "Creating Account..." : "Sign Up"}
@@ -202,18 +196,18 @@ const SignupPage: React.FC = () => {
           {!success && (
             <p className="text-center mt-6 text-gray-600">
               Already have an account?{" "}
-              <Link
-                to={`/login${roleFromUrl ? `?role=${roleFromUrl}` : ""}`}
+              <a
+                href={`/login${roleFromUrl ? `?role=${roleFromUrl}` : ""}`}
                 className="text-blue-600 font-semibold"
               >
                 Login
-              </Link>
+              </a>
             </p>
           )}
         </div>
       </div>
     </div>
-  );
-};
+    </>
+  )
+}
 
-export default SignupPage;
